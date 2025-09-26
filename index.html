@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UpClik - Photo Upscaler</title>
+<link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABb0lEQVQ4T5WTz0tCURTGf+/cZ5iLQ0WiLhKpSxBUhZgEka0VhUURV9BJhYWGoFhZ+gCeF2IuGgZ2EQQjRCHtZz7vvefN/M9CkhJ9NLbd9e3t3t7ZvJNG1Qh23giXJBLuYGie1+V0pFfK6w9I+ZtSMeN0Owz6Ywd4oJMNXhrz6JnAT6y8BeENF6Vv7yN0E3YdDnsy63zNsaj4hK1s6yE5tZcYqZ5FttVq9mCvlY4i5lE6fSBuafWIF1N2NZdZV87xfA+gKknE0ox72uYd2pG12qrsH5XvXSaHtL1+wF4x1LtP1C+KQNdgnFIpDnX8X1u6bDsN6kIvA3Bq5c3GflYJrXpcXZ1F0P1vAac6keMiYg3Ph8Fk0mc7KKf5vxJttPX40FZozox8Vz8n/yXW8gCqXQpG6ED0yq1Wq9sufpM0qf+Ca2so5aVJ8IfgAAAABJRU5ErkJggg==">
+<link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoiUGhvdG8gVXBzY2FsZXIiLCJuYW1lX2xvbmciOiJQcm9ncmFtIiwiYXNzZXRzIjoiUGhvdG8gVXBzY2FsZXIiLCJzdGFydF9jb21tYW5kIjoiL2luZGV4Lmh0bWwiLCJpY29ucyI6W3siaXNhY29uIjoiaHR0cHM6Ly9leGFtcGxlLmNvbS9pbWFnZS5wbmciLCJzaXplIjoiMTAwXzEwMDAiLCJ0eXBlIjoiaWNvbiJ9XX0=">
+
+<style>
+:root{--bg-light:#f7f7f7;--bg-dark:#121212;--text-light:#121212;--text-dark:#f7f7f7;--primary:#4CAF50;--button-bg:#4CAF50;--button-text:#fff;--frame-border:#888;--backlight:rgba(76,175,80,0.5);}
+*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif;}
+body{display:flex;justify-content:center;align-items:center;min-height:100vh;background-color:var(--bg-light);color:var(--text-light);transition:all 0.3s ease;}
+.dark-mode{background-color:var(--bg-dark);color:var(--text-dark);}
+.frame{position:relative;text-align:center;max-width:420px;width:90%;padding:25px;border-radius:20px;border:2px solid var(--frame-border);box-shadow:0 0 25px rgba(0,0,0,0.2);background-color:inherit;transition:all 0.3s ease;}
+.frame.dark-mode{box-shadow:0 0 25px var(--backlight);}
+h1{margin-bottom:15px;font-size:1.6rem;}
+input[type="file"]{margin-bottom:10px;}
+img{max-width:100%;border-radius:12px;margin:10px 0;}
+input[type="number"]{width:60px;padding:5px;margin-left:5px;}
+button{padding:10px 20px;border:none;border-radius:8px;cursor:pointer;background-color:var(--button-bg);color:var(--button-text);margin:5px;transition:0.3s;}
+button:hover{opacity:0.85;}
+footer{margin-top:12px;font-size:0.8rem;color:gray;}
+#progress{margin:10px 0;font-size:0.9rem;}
+#info{text-align:left;font-size:0.85rem;margin-top:10px;background:rgba(0,0,0,0.05);padding:8px;border-radius:8px;transition:all 0.3s ease;}
+.dark-mode #info{background:rgba(255,255,255,0.1);box-shadow:0 0 15px var(--backlight);}
+.toggle-dark{position:absolute;top:15px;right:15px;width:45px;height:45px;border-radius:50%;border:none;background-color:var(--button-bg);color:var(--button-text);cursor:pointer;font-size:1.2rem;display:flex;justify-content:center;align-items:center;transition:0.3s;box-shadow:0 0 12px rgba(0,0,0,0.3);}
+.toggle-dark:hover{opacity:0.85;}
+@media(max-width:600px){.frame{width:95%;}}
+</style>
+</head>
+<body>
+<div class="frame" id="appFrame">
+<button class="toggle-dark">🌙</button>
+<h1>UpClik</h1>
+<input type="file" id="upload" accept="image/*"><br>
+<label>Scale (1-10x): <input type="number" id="scale" min="1" max="10" value="2"></label><br>
+<button id="upscaleBtn">Upscale</button>
+<button id="downloadBtn" disabled>Download</button>
+<button id="clearBtn">Clear</button>
+<div id="progress"></div>
+<div id="previewContainer">
+<img id="preview" src="" alt="" hidden>
+</div>
+<div id="info"></div>
+<footer>© Manik Roy 2025</footer>
+</div>
+
+<script>
+const body=document.body;
+const frame=document.getElementById('appFrame');
+const toggleDark=document.querySelector('.toggle-dark');
+toggleDark.addEventListener('click',()=>{body.classList.toggle('dark-mode');frame.classList.toggle('dark-mode');});
+
+const upload=document.getElementById('upload');
+const preview=document.getElementById('preview');
+const upscaleBtn=document.getElementById('upscaleBtn');
+const downloadBtn=document.getElementById('downloadBtn');
+const clearBtn=document.getElementById('clearBtn');
+const scaleInput=document.getElementById('scale');
+const progressDiv=document.getElementById('progress');
+const infoDiv=document.getElementById('info');
+
+let originalImage=null, originalFileSize=0, originalWidth=0, originalHeight=0;
+const MARKER_COLOR=[10,20,30,255];
+const MAX_PIXELS=45000000;
+
+function formatBytes(bytes){if(bytes===0)return'0 Bytes';const k=1024,s=['Bytes','KB','MB','GB'],i=Math.floor(Math.log(bytes)/Math.log(k));return parseFloat((bytes/k**i).toFixed(2))+' '+s[i];}
+function getMaxScale(origW,origH){const maxScale=Math.floor(Math.sqrt(MAX_PIXELS/(origW*origH)));return Math.max(1,maxScale);}
+function isAppImage(img){const canvas=document.createElement('canvas');canvas.width=img.width;canvas.height=img.height;const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0);const p=ctx.getImageData(0,0,1,1).data;return p[0]===MARKER_COLOR[0]&&p[1]===MARKER_COLOR[1]&&p[2]===MARKER_COLOR[2]&&p[3]===MARKER_COLOR[3];}
+
+// -- Upload and show preview immediately --
+upload.addEventListener('change', e=>{
+const file=e.target.files[0]; if(!file)return;
+if(file.size>45*1024*1024) return alert('File too large! Max 45 MB.');
+originalFileSize=file.size;
+const reader=new FileReader();
+reader.onload=function(ev){
+preview.src=ev.target.result;
+preview.hidden=false;
+originalImage=new Image();
+originalImage.src=ev.target.result;
+originalImage.onload=()=>{
+originalWidth=originalImage.width;
+originalHeight=originalImage.height;
+const maxScale=getMaxScale(originalWidth,originalHeight);
+progressDiv.innerHTML=`You can safely upscale this image up to <strong>${maxScale}×</strong> (45 MP limit).`;
+scaleInput.max=maxScale; scaleInput.value=Math.min(scaleInput.value,maxScale);
+displayInfo(originalWidth,originalHeight,originalFileSize);
+};
+downloadBtn.disabled=true;
+};
+reader.readAsDataURL(file);
+});
+
+// -- Tile-based Upscaling --
+async function advancedUpscale(img,scale){
+const TILE_SIZE=2000;
+const newWidth=img.width*scale,newHeight=img.height*scale;
+const finalCanvas=document.createElement('canvas'); finalCanvas.width=newWidth; finalCanvas.height=newHeight;
+const ctx=finalCanvas.getContext('2d');
+
+const origCanvas=document.createElement('canvas'); origCanvas.width=img.width; origCanvas.height=img.height;
+const origCtx=origCanvas.getContext('2d'); origCtx.drawImage(img,0,0);
+
+// Marker pixel
+const imgData=origCtx.getImageData(0,0,1,1); imgData.data[0]=MARKER_COLOR[0]; imgData.data[1]=MARKER_COLOR[1]; imgData.data[2]=MARKER_COLOR[2]; imgData.data[3]=MARKER_COLOR[3]; origCtx.putImageData(imgData,0,0);
+
+const origData=origCtx.getImageData(0,0,img.width,img.height);
+
+for(let ty=0;ty<newHeight;ty+=TILE_SIZE){
+for(let tx=0;tx<newWidth;tx+=TILE_SIZE){
+const tw=Math.min(TILE_SIZE,newWidth-tx), th=Math.min(TILE_SIZE,newHeight-ty);
+const tileData=ctx.createImageData(tw,th);
+for(let y=0;y<th;y++){
+for(let x=0;x<tw;x++){
+const gx=(tx+x)/(newWidth-1)*(img.width-1), gy=(ty+y)/(newHeight-1)*(img.height-1);
+const x0=Math.floor(gx),y0=Math.floor(gy),x1=Math.min(x0+1,img.width-1),y1=Math.min(y0+1,img.height-1);
+const dx=gx-x0, dy=gy-y0;
+for(let c=0;c<4;c++){
+const p00=origData.data[(y0*img.width+x0)*4+c], p10=origData.data[(y0*img.width+x1)*4+c];
+const p01=origData.data[(y1*img.width+x0)*4+c], p11=origData.data[(y1*img.width+x1)*4+c];
+const val=(p00*(1-dx)*(1-dy))+(p10*dx*(1-dy))+(p01*(1-dx)*dy)+(p11*dx*dy);
+tileData.data[(y*tw+x)*4+c]=val;
+}
+}
+}
+ctx.putImageData(tileData,tx,ty);
+progressDiv.textContent=`Upscaling in progress...`;
+await new Promise(r=>setTimeout(r,1));
+}
+}
+
+ctx.globalAlpha=1.0; ctx.filter='contrast(105%) brightness(105%)'; ctx.drawImage(finalCanvas,0,0);
+preview.src=finalCanvas.toDataURL('image/png');
+downloadBtn.disabled=false;
+
+finalCanvas.toBlob(blob=>{
+displayInfo(originalWidth,originalHeight,originalFileSize,finalCanvas.width,finalCanvas.height,blob.size,300);
+downloadBtn.onclick=function(){const a=document.createElement('a');a.href=finalCanvas.toDataURL('image/png');a.download='upscaled.png';a.click();}
+},'image/png');
+
+progressDiv.textContent='Upscaling Done!';
+}
+
+// -- Upscale Button --
+upscaleBtn.addEventListener('click',()=>{
+if(!originalImage) return alert('Please upload an image first.');
+const scale=Math.min(Math.max(parseInt(scaleInput.value),1),parseInt(scaleInput.max));
+const estimatedPixels=originalImage.width*originalImage.height*scale*scale;
+if(estimatedPixels>MAX_PIXELS) return alert('Upscaled image would exceed 45 MP. Adjust scale.');
+progressDiv.textContent='Upscaling...';
+advancedUpscale(originalImage,scale);
+});
+
+// -- Clear Button --
+clearBtn.addEventListener('click',()=>{
+originalImage=null; originalFileSize=0; originalWidth=0; originalHeight=0;
+preview.src=''; preview.hidden=true; upload.value='';
+progressDiv.textContent=''; infoDiv.innerHTML=''; downloadBtn.disabled=true;
+scaleInput.value=2; scaleInput.max=10;
+});
+
+// -- Display Info --
+function displayInfo(origW,origH,origSize=null,upW=null,upH=null,upSize=null,dpi=300){
+let infoHTML=`<strong>Original Image:</strong><br>Dimensions: ${origW} × ${origH} px<br>`;
+if(origSize) infoHTML+=`File Size: ${formatBytes(origSize)}<br>`;
+const origPrintW=(origW/dpi).toFixed(2), origPrintH=(origH/dpi).toFixed(2);
+infoHTML+=`Print Size: ${origPrintW} × ${origPrintH} inches at ${dpi} DPI<br>`;
+if(upW&&upH){
+infoHTML+=`<br><strong>Upscaled Image:</strong><br>Dimensions: ${upW} × ${upH} px<br>`;
+if(upSize) infoHTML+=`Estimated File Size: ${formatBytes(upSize)}<br>`;
+const upPrintW=(upW/dpi).toFixed(2), upPrintH=(upH/dpi).toFixed(2);
+infoHTML+=`Print Size: ${upPrintW} × ${upPrintH} inches at ${dpi} DPI`;
+}
+infoDiv.innerHTML=infoHTML;
+}
+</script>
+</body>
+</html>
